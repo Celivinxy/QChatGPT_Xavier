@@ -69,54 +69,56 @@ class CommandHandler(handler.MessageHandler):
 
             session = await self.ap.sess_mgr.get_session(query)
 
-            async for ret in self.ap.cmd_mgr.execute(
-                command_text=command_text,
-                query=query,
-                session=session
-            ):
-                if ret.error is not None:
-                    query.resp_messages.append(
-                        llm_entities.Message(
-                            role='command',
-                            content=str(ret.error),
-                        )
-                    )
-
-                    self.ap.logger.info(f'命令({query.query_id})报错: {self.cut_str(str(ret.error))}')
-
-                    yield entities.StageProcessResult(
-                        result_type=entities.ResultType.CONTINUE,
-                        new_query=query
-                    )
-                elif ret.text is not None or ret.image_url is not None:
-
-                    content: list[llm_entities.ContentElement]= []
-
-                    if ret.text is not None:
-                        content.append(
-                            llm_entities.ContentElement.from_text(ret.text)
+            ##V1 仅管理员权限可执行指令
+            if privilege == 2:
+                async for ret in self.ap.cmd_mgr.execute(
+                    command_text=command_text,
+                    query=query,
+                    session=session
+                ):
+                    if ret.error is not None:
+                        query.resp_messages.append(
+                            llm_entities.Message(
+                                role='command',
+                                content=str(ret.error),
+                            )
                         )
 
-                    if ret.image_url is not None:
-                        content.append(
-                            llm_entities.ContentElement.from_image_url(ret.image_url)
+                        self.ap.logger.info(f'命令({query.query_id})报错: {self.cut_str(str(ret.error))}')
+
+                        yield entities.StageProcessResult(
+                            result_type=entities.ResultType.CONTINUE,
+                            new_query=query
+                        )
+                    elif ret.text is not None or ret.image_url is not None:
+
+                        content: list[llm_entities.ContentElement]= []
+
+                        if ret.text is not None:
+                            content.append(
+                                llm_entities.ContentElement.from_text(ret.text)
+                            )
+
+                        if ret.image_url is not None:
+                            content.append(
+                                llm_entities.ContentElement.from_image_url(ret.image_url)
+                            )
+
+                        query.resp_messages.append(
+                            llm_entities.Message(
+                                role='command',
+                                content=content,
+                            )
                         )
 
-                    query.resp_messages.append(
-                        llm_entities.Message(
-                            role='command',
-                            content=content,
+                        self.ap.logger.info(f'命令返回: {self.cut_str(str(content[0]))}')
+
+                        yield entities.StageProcessResult(
+                            result_type=entities.ResultType.CONTINUE,
+                            new_query=query
                         )
-                    )
-
-                    self.ap.logger.info(f'命令返回: {self.cut_str(str(content[0]))}')
-
-                    yield entities.StageProcessResult(
-                        result_type=entities.ResultType.CONTINUE,
-                        new_query=query
-                    )
-                else:
-                    yield entities.StageProcessResult(
-                        result_type=entities.ResultType.INTERRUPT,
-                        new_query=query
-                    )
+                    else:
+                        yield entities.StageProcessResult(
+                            result_type=entities.ResultType.INTERRUPT,
+                            new_query=query
+                        )
